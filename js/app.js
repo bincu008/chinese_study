@@ -244,9 +244,20 @@
     return hwPromise;
   }
   // Dữ liệu nét: ưu tiên file đi kèm (vendor/strokes), nếu chưa có thì tải từ CDN (cần Internet)
+  let strokesPromise;
+  function loadStrokeBundle() {
+    if (window.STROKES) return Promise.resolve();
+    if (!strokesPromise) strokesPromise = new Promise((res) => {
+      const sc = document.createElement("script");
+      sc.src = "vendor/strokes.js?v=" + (document.querySelector('script[src*="app.js"]').src.split("v=")[1] || "");
+      sc.onload = res; sc.onerror = res;
+      document.head.appendChild(sc);
+    });
+    return strokesPromise;
+  }
   function strokeData(ch, onLoad, onError) {
-    fetch(`vendor/strokes/${encodeURIComponent(ch)}.json`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+    loadStrokeBundle()
+      .then(() => (window.STROKES && window.STROKES[ch] ? window.STROKES[ch] : Promise.reject()))
       .catch(() => fetch(`https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0.1/${encodeURIComponent(ch)}.json`).then((r) => (r.ok ? r.json() : Promise.reject())))
       .then(onLoad, onError);
   }
