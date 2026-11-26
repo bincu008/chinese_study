@@ -213,7 +213,7 @@
           <span class="t1">1</span> <span class="t2">2</span> <span class="t3">3</span> <span class="t4">4</span> <span class="t5">nhẹ</span></span>
         ${notIn ? `<button class="btn primary" id="add-all">＋ Thêm ${notIn} từ vào ôn tập</button>` : `<span class="tag ok">Đã thêm tất cả vào ôn tập</span>`}
       </div>
-      <div class="words">${l.vocab.map(wordCardHTML).join("")}</div>
+      <div class="words">${l.vocab.map((w, i) => wordCardHTML(w, i)).join("")}</div>
       <div class="next-step"><a class="btn primary" href="#/lesson/${l.id}/grammar">Tiếp theo: Ngữ pháp →</a></div>`;
     const add = document.getElementById("add-all");
     if (add) add.onclick = () => {
