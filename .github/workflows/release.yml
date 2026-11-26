@@ -1,28 +1,24 @@
-name: Release
+name: Release zip
 
-# Mỗi lần đẩy một tag dạng v1.2.3 lên GitHub, tự động tạo Release kèm file zip của trang web.
+# Khi một Release được tạo trên GitHub, tự động đóng gói trang web thành file zip và đính kèm vào Release.
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  zip:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build zip
+      - name: Build and upload zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
         run: |
           mkdir -p dist/chinese_study
           cp -r index.html css js README.md dist/chinese_study/
-          cd dist && zip -qr "chinese_study-${GITHUB_REF_NAME}.zip" chinese_study
-      - name: Create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          NOTES_FILE=$(mktemp)
-          if [ -f "release-notes/${GITHUB_REF_NAME}.md" ]; then cp "release-notes/${GITHUB_REF_NAME}.md" "$NOTES_FILE"; else echo "Phiên bản ${GITHUB_REF_NAME}" > "$NOTES_FILE"; fi
-          gh release create "$GITHUB_REF_NAME" "dist/chinese_study-${GITHUB_REF_NAME}.zip" \
-            --title "$GITHUB_REF_NAME" --notes-file "$NOTES_FILE" --generate-notes
+          cd dist && zip -qr "chinese_study-${TAG}.zip" chinese_study
+          gh release upload "$TAG" "chinese_study-${TAG}.zip" --clobber
