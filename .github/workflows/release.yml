@@ -25,7 +25,7 @@ jobs:
             echo "Release $TAG already exists, nothing to do."; exit 0
           fi
           mkdir -p dist/chinese_study
-          cp -r index.html css js README.md dist/chinese_study/
+          cp -r index.html css js vendor README.md dist/chinese_study/
           (cd dist && zip -qr "chinese_study-${TAG}.zip" chinese_study)
           NOTES="release-notes/${TAG}.md"
           [ -f "$NOTES" ] || { echo "Phiên bản ${TAG}" > /tmp/notes.md; NOTES=/tmp/notes.md; }

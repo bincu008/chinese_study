@@ -237,11 +237,18 @@
     if (window.HanziWriter) return Promise.resolve();
     if (!hwPromise) hwPromise = new Promise((res, rej) => {
       const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/hanzi-writer@3.5.0/dist/hanzi-writer.min.js";
+      s.src = "vendor/hanzi-writer/hanzi-writer.min.js"; // thư viện đi kèm, không cần Internet
       s.onload = res; s.onerror = () => { hwPromise = null; rej(); };
       document.head.appendChild(s);
     });
     return hwPromise;
+  }
+  // Dữ liệu nét: ưu tiên file đi kèm (vendor/strokes), nếu chưa có thì tải từ CDN (cần Internet)
+  function strokeData(ch, onLoad, onError) {
+    fetch(`vendor/strokes/${encodeURIComponent(ch)}.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .catch(() => fetch(`https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0.1/${encodeURIComponent(ch)}.json`).then((r) => (r.ok ? r.json() : Promise.reject())))
+      .then(onLoad, onError);
   }
   function showStrokes(hz, box) {
     if (box.childElementCount) { box.innerHTML = ""; return; }
@@ -254,6 +261,7 @@
         return HanziWriter.create(d, ch, {
           width: 110, height: 110, padding: 6, showOutline: true, strokeAnimationSpeed: 1, delayBetweenStrokes: 250,
           strokeColor: getComputedStyle(document.body).getPropertyValue("--ink").trim() || "#222",
+          charDataLoader: strokeData,
           onLoadCharDataError: () => { d.innerHTML = `<span class="muted">Không có dữ liệu nét cho ${ch}</span>`; }
         });
       });
@@ -263,7 +271,7 @@
       again.className = "btn small"; again.textContent = "↻ Xem lại";
       again.onclick = () => { box.innerHTML = ""; showStrokes(hz, box); };
       box.appendChild(again);
-    }).catch(() => { box.innerHTML = '<span class="muted">Cần kết nối Internet để xem thứ tự nét.</span>'; });
+    }).catch(() => { box.innerHTML = '<span class="muted">Không tải được thư viện thứ tự nét.</span>'; });
   }
 
   // ── Bài tập (dùng cho cả Ngữ pháp và Bài thi) ─────────
