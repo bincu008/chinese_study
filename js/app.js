@@ -8,8 +8,10 @@
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const sample = (a, n) => shuffle(a).slice(0, n);
   const lessonById = (id) => LESSONS.find((l) => l.id === +id);
-  const allWords = () => LESSONS.flatMap((l) => l.vocab.map((w) => Object.assign({ lesson: l.id }, w)));
-  const wordByHz = (hz) => allWords().find((w) => w.hz === hz);
+  const systemWords = () => LESSONS.flatMap((l) => l.vocab.map((w) => Object.assign({ lesson: l.id, unit: l.unit }, w)));
+  const userWords = () => UserContent.pool().words.map((w) => Object.assign({ mine: true }, w));
+  const allWords = () => systemWords().concat(userWords());
+  const wordByHz = (hz) => userWords().find((w) => w.hz === hz) || systemWords().find((w) => w.hz === hz);
 
   function toneOf(syl) {
     if (syl.startsWith("˙")) return 5;
@@ -69,7 +71,11 @@
     [/^#?\/?$/, viewHome],
     [/^#\/lesson\/(\d+)(?:\/(\w+))?$/, viewLesson],
     [/^#\/review$/, viewReview],
-    [/^#\/exam\/(\d+)$/, viewExam],
+    [/^#\/exam\/(\d+)$/, (u) => Exam.viewExam(+u)],
+    [/^#\/mock$/, () => Exam.viewExam("all")],
+    [/^#\/mine\/word\/([\w-]+)$/, (id) => UserContent.viewWordForm(id)],
+    [/^#\/mine\/grammar\/([\w-]+)$/, (id) => UserContent.viewGrammarForm(id)],
+    [/^#\/mine(?:\/(words|grammar|bulk))?$/, (t) => UserContent.viewMine(t || "words")],
     [/^#\/zhuyin$/, viewZhuyin],
     [/^#\/words$/, viewWords],
     [/^#\/settings$/, viewSettings]
@@ -106,7 +112,15 @@
         <div class="stat"><b>${Store.streak()}</b><span>ngày liên tiếp 🔥</span></div>
         <div class="stat"><b>${total}</b><span>từ đang học (${mature} đã thuộc)</span></div>
       </section>
-      ${activityHTML()}`;
+      ${activityHTML()}
+      <div class="grid top-tiles">
+        <a class="card exam-card" href="#/mock"><div class="lc-top"><span class="tag exam">Thi thử</span></div>
+          <div class="lc-title">TOCFL 模擬考</div><div class="lc-sub">Đề thi thử Band A (A2): Nghe 4 phần + Đọc 5 phần, trộn kho mặc định và kho của bạn</div>
+          <div class="lc-meta">${examMeta(Store.state.exams.all)}</div></a>
+        <a class="card" href="#/mine"><div class="lc-top"><span class="tag">Của tôi</span></div>
+          <div class="lc-title">我的內容</div><div class="lc-sub">Từ vựng & ngữ pháp bạn tự thêm</div>
+          <div class="lc-meta">📖 ${UserContent.pool().words.length} từ · ✏️ ${UserContent.pool().grammar.length} điểm ngữ pháp</div></a>
+      </div>`;
 
     for (const u of UNITS) {
       const ex = Store.state.exams[u.id];
@@ -117,7 +131,7 @@
         const p = lessonProgress(l);
         html += `
           <a class="card lesson-card" href="#/lesson/${l.id}">
-            <div class="lc-top"><span class="tag">Bài ${l.id}</span>${p.pct === 100 ? '<span class="tag ok">Hoàn thành</span>' : ""}</div>
+            <div class="lc-top"><span class="tag">Bài ${l.id}</span><span class="tag">${l.level || "A1"}</span>${p.pct === 100 ? '<span class="tag ok">Hoàn thành</span>' : ""}</div>
             <div class="lc-title">${esc(l.title)}</div>
             <div class="lc-sub">${esc(l.titleVi)}</div>
             <div class="bar"><i style="width:${p.pct}%"></i></div>
@@ -126,16 +140,21 @@
       }
       html += `
           <a class="card exam-card" href="#/exam/${u.id}">
-            <div class="lc-top"><span class="tag exam">Bài thi</span>${ex && ex.best >= 70 ? '<span class="tag ok">Đạt</span>' : ""}</div>
+            <div class="lc-top"><span class="tag exam">Bài thi</span>${ex && ex.passed ? '<span class="tag ok">Đạt</span>' : ""}</div>
             <div class="lc-title">測驗 ${u.id}</div>
             <div class="lc-sub">Kiểm tra bài ${u.lessons[0]}–${u.lessons[u.lessons.length - 1]} (dạng TOCFL)</div>
-            <div class="lc-meta">${ex ? `Cao nhất: <b>${ex.best}%</b> · Lần gần nhất: ${ex.last}% · ${ex.attempts} lần thi` : "Chưa thi — cần đạt 70%"}</div>
+            <div class="lc-meta">${examMeta(ex)}</div>
           </a>
         </div>`;
     }
     $app.innerHTML = html;
   }
 
+  function examMeta(ex) {
+    if (!ex || !ex.attempts) return "Chưa thi";
+    const l = ex.last || {};
+    return `Lần gần nhất: Nghe <b>${l.listening ?? "–"}</b> · Đọc <b>${l.reading ?? "–"}</b> /80 · ${ex.attempts} lần thi`;
+  }
   function activityHTML() {
     const days = [];
     const d = new Date();
@@ -168,19 +187,19 @@
     ({ vocab: tabVocab, grammar: tabGrammar, pron: tabPron, cards: tabCards }[tab] || tabVocab)(l, $t);
   }
 
-  function wordCardHTML(w, i) {
+  function wordCardHTML(w, i, extra = "") {
     return `
       <article class="word">
         <div class="word-main">
           <div class="hz">${hanziHTML(w)}</div>
           <div class="reading">${readingHTML(w)}</div>
-          <div class="word-btns">${playBtn(w.hz)}<button class="btn small stroke" data-i="${i}" title="Xem thứ tự nét">✍️ Nét</button></div>
+          <div class="word-btns">${playBtn(w.hz)}<button class="btn small stroke" data-i="${i}" title="Xem thứ tự nét">✍️ Nét</button>${extra}</div>
         </div>
         <div class="word-body">
           <div class="vi">${esc(w.vi)}</div>
-          <div class="hv">Hán-Việt: <b>${esc(w.hv)}</b></div>
-          <div class="story"><span>💡 Ghi nhớ</span> ${esc(w.story)}</div>
-          ${w.ex ? exampleHTML(w.ex) : ""}
+          ${w.hv ? `<div class="hv">Hán-Việt: <b>${esc(w.hv)}</b></div>` : ""}
+          ${w.story ? `<div class="story"><span>💡 Ghi nhớ</span> ${esc(w.story)}</div>` : ""}
+          ${w.ex && w.ex.zh ? exampleHTML(w.ex) : ""}
           <div class="stroke-box" id="stroke-${i}"></div>
         </div>
       </article>`;
@@ -203,7 +222,13 @@
       toast(`Đã thêm ${n} thẻ. Vào mục Ôn tập để học!`);
       tabVocab(l, $t); updateNavBadge();
     };
-    $t.querySelectorAll(".stroke").forEach((b) => (b.onclick = () => showStrokes(l.vocab[b.dataset.i].hz, document.getElementById("stroke-" + b.dataset.i))));
+    bindStrokes($t, l.vocab, "");
+  }
+  function bindStrokes($t, words, prefix) {
+    $t.querySelectorAll(".stroke").forEach((b) => (b.onclick = () => {
+      const idx = String(b.dataset.i).slice(prefix.length);
+      showStrokes(words[idx].hz, document.getElementById("stroke-" + b.dataset.i));
+    }));
   }
 
   // Thứ tự nét bằng thư viện Hanzi Writer (cần Internet)
@@ -257,7 +282,7 @@
     }));
   }
 
-  function renderOrder(el, ex, onResult) {
+  function renderOrder(el, ex, onResult, silent) {
     let picked = [];
     let pool = shuffle(ex.words.map((w, i) => ({ w, i })));
     if (pool.every((p, k) => p.i === k) && pool.length > 1) pool.reverse();
@@ -272,6 +297,7 @@
       el.querySelector(".check").onclick = () => {
         const ok = picked.map((p) => p.w).join("") === answer;
         el.querySelectorAll(".tile, .check").forEach((b) => (b.disabled = true));
+        if (silent) { el.querySelector(".fb").innerHTML = '<span class="muted">Đã ghi nhận câu trả lời.</span>'; onResult && onResult(ok); return; }
         el.querySelector(".order-line").classList.add(ok ? "right" : "wrong");
         el.querySelector(".fb").innerHTML = (ok ? "✅ Chính xác! " : `❌ Đáp án: <b>${esc(ex.words.join(" "))}</b> `) + playBtn(answer + "。");
         Speech.speak(answer);
@@ -282,22 +308,21 @@
   }
   const renderExercise = (el, ex, cb) => (ex.type === "order" ? renderOrder : renderMC)(el, ex, cb);
 
-  function tabGrammar(l, $t) {
-    const st = Store.lesson(l.id);
-    $t.innerHTML = l.grammar.map((g, gi) => `
-      <section class="gram">
-        <h2>${gi + 1}. ${esc(g.title)}</h2>
+  function grammarBody(g, key, doneMap = {}) {
+    return `
         <p>${esc(g.explain)}</p>
-        <div class="pattern">${esc(g.pattern)}</div>
-        ${g.examples.map(exampleHTML).join("")}
-        <h3>Bài tập</h3>
-        ${g.exercises.map((e, ei) => `<div class="exercise ${st.grammar[`g${gi}e${ei}`] ? "was-done" : ""}" id="ex-${gi}-${ei}"></div>`).join("")}
-      </section>`).join("") + `<div class="next-step"><a class="btn primary" href="#/lesson/${l.id}/pron">Tiếp theo: Phát âm →</a></div>`;
-    l.grammar.forEach((g, gi) => g.exercises.forEach((e, ei) => {
-      const el = document.getElementById(`ex-${gi}-${ei}`);
+        ${g.pattern ? `<div class="pattern">${esc(g.pattern)}</div>` : ""}
+        ${(g.examples || []).map(exampleHTML).join("")}
+        ${g.exercises && g.exercises.length ? "<h3>Bài tập</h3>" : ""}
+        ${(g.exercises || []).map((e, ei) => `<div class="exercise ${doneMap[ei] ? "was-done" : ""}" id="ex-${key}-${ei}"></div>`).join("")}`;
+  }
+  function mountExercises(g, key, onCorrect) {
+    (g.exercises || []).forEach((e, ei) => {
+      const el = document.getElementById(`ex-${key}-${ei}`);
+      if (!el) return;
       const wrap = () => {
         renderExercise(el, e, (ok) => {
-          if (ok) { st.grammar[`g${gi}e${ei}`] = true; Store.save(); }
+          if (ok && onCorrect) onCorrect(ei);
           const r = document.createElement("button");
           r.className = "btn small retry"; r.textContent = "↻ Làm lại";
           r.onclick = () => { delete el.dataset.done; wrap(); };
@@ -305,7 +330,15 @@
         });
       };
       wrap();
-    }));
+    });
+  }
+  function tabGrammar(l, $t) {
+    const st = Store.lesson(l.id);
+    $t.innerHTML = l.grammar.map((g, gi) => {
+      const done = {}; g.exercises.forEach((_, ei) => (done[ei] = st.grammar[`g${gi}e${ei}`]));
+      return `<section class="gram"><h2>${gi + 1}. ${esc(g.title)}</h2>${grammarBody(g, gi, done)}</section>`;
+    }).join("") + `<div class="next-step"><a class="btn primary" href="#/lesson/${l.id}/pron">Tiếp theo: Phát âm →</a></div>`;
+    l.grammar.forEach((g, gi) => mountExercises(g, gi, (ei) => { st.grammar[`g${gi}e${ei}`] = true; Store.save(); }));
   }
 
   // ── Phát âm ───────────────────────────────────────────
@@ -427,7 +460,7 @@
       if (!w) { queue.shift(); return draw(); }
       const lbl = (r) => Store.nextIntervalLabel(hz, r);
       $app.innerHTML = `
-        <div class="crumbs"><a href="#/">Trang chủ</a> › Ôn tập · còn <b>${queue.length}</b> thẻ · Bài ${w.lesson}</div>
+        <div class="crumbs"><a href="#/">Trang chủ</a> › Ôn tập · còn <b>${queue.length}</b> thẻ · ${w.mine ? "Của tôi" : "Bài " + w.lesson}</div>
         ${flashcardHTML(w, flipped)}
         ${flipped ? `<div class="rate">
             <button class="r0" data-r="0">Quên<small>${lbl(0)}</small></button>
@@ -465,88 +498,6 @@
     if (e.code === "Space" && /\/cards$/.test(location.hash)) { const f = document.querySelector(".flash"); if (f) { e.preventDefault(); f.click(); } }
   });
 
-  // ── Bài thi ───────────────────────────────────────────
-  function buildExam(unit) {
-    const ls = unit.lessons.map(lessonById).filter(Boolean);
-    const words = ls.flatMap((l) => l.vocab);
-    const examples = words.filter((w) => w.ex).map((w) => w.ex);
-    const qs = [];
-    const mcFrom = (correct, pool) => {
-      const choices = shuffle([correct, ...sample(pool.filter((x) => x !== correct), 3)]);
-      return { choices, answer: choices.indexOf(correct) };
-    };
-    const vis = [...new Set(words.map((w) => w.vi))];
-    const hzs = words.map((w) => w.hz);
-    // Phần 1: Nghe
-    for (const w of sample(words, 6)) qs.push(Object.assign({ sec: "Nghe hiểu", type: "mc", q: "Nghe và chọn nghĩa đúng:", say: w.hz }, mcFrom(w.vi, vis)));
-    const exVi = [...new Set(examples.map((e) => e.vi))];
-    for (const e of sample(examples, 3)) qs.push(Object.assign({ sec: "Nghe hiểu", type: "mc", q: "Nghe câu và chọn nghĩa đúng:", say: e.zh }, mcFrom(e.vi, exVi)));
-    // Phần 2: Từ vựng
-    for (const w of sample(words, 6)) qs.push(Object.assign({ sec: "Từ vựng", type: "mc", q: `「${w.hz}」 nghĩa là gì?` }, mcFrom(w.vi, vis)));
-    for (const w of sample(words, 5)) qs.push(Object.assign({ sec: "Từ vựng", type: "mc", q: `Chọn chữ Hán cho: “${w.vi}”` }, mcFrom(w.hz, hzs)));
-    // Phần 3: Đọc hiểu & ngữ pháp
-    const exs = ls.flatMap((l) => l.grammar.flatMap((g) => g.exercises));
-    for (const e of sample(exs.filter((e) => e.type === "mc"), 6)) qs.push(Object.assign({ sec: "Ngữ pháp" }, e));
-    for (const e of sample(exs.filter((e) => e.type === "order"), 3)) qs.push(Object.assign({ sec: "Ngữ pháp" }, e));
-    return qs;
-  }
-
-  function viewExam(uid) {
-    const unit = UNITS.find((u) => u.id === +uid);
-    if (!unit) { location.hash = "#/"; return; }
-    const prev = Store.state.exams[unit.id];
-    $app.innerHTML = `
-      <div class="crumbs"><a href="#/">Trang chủ</a> › Bài thi ${unit.id}</div>
-      <div class="center-box">
-        <h1>測驗 ${unit.id} — Bài thi đơn vị ${unit.id}</h1>
-        <p>Nội dung bài ${unit.lessons.join(", ")}. Mô phỏng TOCFL Band A: <b>Nghe hiểu</b> (9 câu), <b>Từ vựng</b> (11 câu), <b>Ngữ pháp & đọc</b> (9 câu).</p>
-        <p class="muted">Bật loa. Mỗi câu chỉ được chọn một lần. Cần đạt <b>70%</b>.</p>
-        ${prev ? `<p>Điểm cao nhất: <b>${prev.best}%</b> (${prev.attempts} lần thi)</p>` : ""}
-        <button class="btn primary big" id="go">Bắt đầu làm bài</button>
-      </div>`;
-    document.getElementById("go").onclick = () => runExam(unit);
-  }
-
-  function runExam(unit) {
-    const qs = buildExam(unit);
-    const results = [];
-    let i = 0;
-    function draw() {
-      if (i >= qs.length) return result();
-      const q = qs[i];
-      $app.innerHTML = `
-        <div class="crumbs">Bài thi ${unit.id} · <b>${esc(q.sec)}</b> · Câu ${i + 1}/${qs.length}</div>
-        <div class="bar"><i style="width:${(i / qs.length) * 100}%"></i></div>
-        <div class="exercise exam-q" id="q"></div>
-        <div class="row"><button class="btn primary" id="nx" disabled>Câu tiếp →</button></div>`;
-      renderExercise(document.getElementById("q"), q, (ok) => {
-        results.push({ q, ok });
-        const nx = document.getElementById("nx");
-        nx.disabled = false; nx.focus();
-        nx.onclick = () => { i++; draw(); };
-      });
-    }
-    function result() {
-      const correct = results.filter((r) => r.ok).length;
-      const score = Math.round((correct / qs.length) * 100);
-      Store.recordExam(unit.id, score);
-      const bySec = {};
-      results.forEach((r) => { const s = (bySec[r.q.sec] = bySec[r.q.sec] || [0, 0]); s[1]++; if (r.ok) s[0]++; });
-      const wrong = results.filter((r) => !r.ok);
-      $app.innerHTML = `
-        <div class="center-box">
-          <h1>${score >= 70 ? "🎉 Đạt!" : "Chưa đạt"}</h1>
-          <p class="big-score">${score}%</p>
-          <p>${correct}/${qs.length} câu đúng</p>
-          <div class="stats">${Object.entries(bySec).map(([s, [a, b]]) => `<div class="stat"><b>${a}/${b}</b><span>${esc(s)}</span></div>`).join("")}</div>
-          <div class="row center"><button class="btn primary" id="again">↻ Thi lại</button><a class="btn" href="#/">Về trang chủ</a></div>
-        </div>
-        ${wrong.length ? `<h2>Xem lại câu sai</h2>${wrong.map((r) => `<div class="exercise"><div class="q">${esc(r.q.q || r.q.vi)} ${r.q.say ? playBtn(r.q.say) + ` <span class="muted">${esc(r.q.say)}</span>` : ""}</div><div>Đáp án: <b>${esc(r.q.type === "order" ? r.q.words.join(" ") : r.q.choices[r.q.answer])}</b></div></div>`).join("")}` : ""}`;
-      document.getElementById("again").onclick = () => runExam(unit);
-    }
-    draw();
-  }
-
   // ── Bảng chú âm ───────────────────────────────────────
   function viewZhuyin() {
     const group = (title, rows) => `<h2>${title}</h2><div class="zy-grid">${rows.map(([sym, py, ch, zy, note]) => `
@@ -576,7 +527,7 @@
       document.getElementById("rows").innerHTML = rows.map((w) => {
         const c = Store.state.cards[w.hz];
         const st = !c ? "–" : c.interval >= 21 ? "✅ Thuộc" : c.reps ? `${Math.round(c.interval)} ngày` : "Mới";
-        return `<tr><td>${playBtn(w.hz)}</td><td class="hz-s">${hanziHTML(w)}</td><td>${readingHTML(w)}</td><td>${esc(w.vi)}</td><td>${esc(w.hv)}</td><td><a href="#/lesson/${w.lesson}">${w.lesson}</a></td><td>${st}</td></tr>`;
+        return `<tr><td>${playBtn(w.hz)}</td><td class="hz-s">${hanziHTML(w)}</td><td>${readingHTML(w)}</td><td>${esc(w.vi)}</td><td>${esc(w.hv)}</td><td>${w.mine ? '<a href="#/mine">Của tôi</a>' : `<a href="#/lesson/${w.lesson}">${w.lesson}</a>`}</td><td>${st}</td></tr>`;
       }).join("") || '<tr><td colspan="7" class="muted">Không tìm thấy.</td></tr>';
     }
     document.getElementById("search").oninput = (e) => draw(e.target.value);
@@ -625,5 +576,7 @@
     };
   }
 
+  window.UI = { esc, shuffle, sample, hanziHTML, readingHTML, playBtn, exampleHTML, wordCardHTML, bindStrokes, grammarBody, mountExercises,
+    renderExercise, renderMC, renderOrder, toast, updateNavBadge, allWords, systemWords, userWords, wordByHz, lessonById };
   render();
 })();

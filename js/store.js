@@ -8,7 +8,8 @@
     cards: {},        // hz -> { ease, interval, due, reps, lapses, added }
     lessons: {},      // id -> { vocabSeen: bool, grammar: {exKey: true}, pronDone: bool }
     exams: {},        // unitId -> { best, last, attempts, history: [{date, score}] }
-    log: {}           // "YYYY-MM-DD" -> number of reviews
+    log: {},          // "YYYY-MM-DD" -> number of reviews
+    user: { words: [], grammar: [] } // kho "Của tôi" do người dùng tự thêm
   });
 
   let state;
@@ -90,11 +91,13 @@
     return n;
   }
 
-  function recordExam(unit, score) {
-    const e = state.exams[unit] || { best: 0, last: 0, attempts: 0, history: [] };
-    e.best = Math.max(e.best, score); e.last = score; e.attempts++;
-    e.history.push({ date: today(), score });
-    state.exams[unit] = e;
+  // result: { listening, reading } (điểm quy đổi /80), passed: bool
+  function recordExam(key, result) {
+    const e = state.exams[key] && state.exams[key].history ? state.exams[key] : { attempts: 0, history: [] };
+    e.attempts++; e.last = result;
+    e.passed = e.passed || result.passed;
+    e.history.push(Object.assign({ date: today() }, result));
+    state.exams[key] = e;
     save();
   }
 

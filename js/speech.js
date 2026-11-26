@@ -31,8 +31,24 @@
     return true;
   }
 
+  // Đọc nhiều câu nối tiếp (hội thoại): giọng nữ cao hơn, giọng nam thấp hơn
+  function speakLines(lines, onEnd) {
+    if (!synth) return false;
+    synth.cancel();
+    lines.forEach(([who, text], i) => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = voice ? voice.lang : "zh-TW";
+      if (voice) u.voice = voice;
+      u.rate = window.Store ? Store.state.settings.rate : 0.8;
+      u.pitch = who === "女" ? 1.35 : who === "男" ? 0.75 : 1;
+      if (i === lines.length - 1 && onEnd) u.onend = onEnd;
+      synth.speak(u);
+    });
+    return true;
+  }
+
   window.Speech = {
-    speak,
+    speak, speakLines,
     get available() { return !!synth; },
     get voiceName() { return voice ? `${voice.name} (${voice.lang})` : null; }
   };
