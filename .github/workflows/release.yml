@@ -1,24 +1,33 @@
-name: Release zip
+name: Release
 
-# Khi một Release được tạo trên GitHub, tự động đóng gói trang web thành file zip và đính kèm vào Release.
+# Mỗi lần đẩy code lên nhánh main: đọc số phiên bản trong file VERSION.
+# Nếu Release cho phiên bản đó chưa có, tự tạo Release (tag vX.Y.Z) kèm ghi chú
+# từ release-notes/vX.Y.Z.md và file zip của trang web.
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  zip:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build and upload zip
+      - name: Create release if VERSION is new
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
         run: |
+          TAG="v$(tr -d '[:space:]' < VERSION)"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, nothing to do."; exit 0
+          fi
           mkdir -p dist/chinese_study
           cp -r index.html css js README.md dist/chinese_study/
-          cd dist && zip -qr "chinese_study-${TAG}.zip" chinese_study
-          gh release upload "$TAG" "chinese_study-${TAG}.zip" --clobber
+          (cd dist && zip -qr "chinese_study-${TAG}.zip" chinese_study)
+          NOTES="release-notes/${TAG}.md"
+          [ -f "$NOTES" ] || { echo "Phiên bản ${TAG}" > /tmp/notes.md; NOTES=/tmp/notes.md; }
+          gh release create "$TAG" "dist/chinese_study-${TAG}.zip" \
+            --target "$GITHUB_SHA" --title "$TAG" --notes-file "$NOTES"

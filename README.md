@@ -28,3 +28,7 @@ Phát âm dùng giọng đọc của trình duyệt (zh-TW) — Chrome/Edge cho 
 ## Thêm nội dung mặc định
 
 Thêm bài vào `LESSONS` (mỗi chữ trong `hz` ứng với đúng một âm tiết chú âm trong `zy`), thêm id bài vào `UNITS`, và thêm câu hỏi nghe/đọc cho đơn vị trong `js/bank.js`.
+
+## Phát hành phiên bản
+
+Tăng số trong file `VERSION`, viết ghi chú vào `release-notes/vX.Y.Z.md`, rồi đẩy lên `main`. GitHub Action `Release` sẽ tự tạo Release kèm file zip.
