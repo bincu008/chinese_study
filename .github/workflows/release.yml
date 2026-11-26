@@ -1,0 +1,28 @@
+name: Release
+
+# Mỗi lần đẩy một tag dạng v1.2.3 lên GitHub, tự động tạo Release kèm file zip của trang web.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build zip
+        run: |
+          mkdir -p dist/chinese_study
+          cp -r index.html css js README.md dist/chinese_study/
+          cd dist && zip -qr "chinese_study-${GITHUB_REF_NAME}.zip" chinese_study
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES_FILE=$(mktemp)
+          if [ -f "release-notes/${GITHUB_REF_NAME}.md" ]; then cp "release-notes/${GITHUB_REF_NAME}.md" "$NOTES_FILE"; else echo "Phiên bản ${GITHUB_REF_NAME}" > "$NOTES_FILE"; fi
+          gh release create "$GITHUB_REF_NAME" "dist/chinese_study-${GITHUB_REF_NAME}.zip" \
+            --title "$GITHUB_REF_NAME" --notes-file "$NOTES_FILE" --generate-notes
