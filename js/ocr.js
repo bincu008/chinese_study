@@ -197,7 +197,7 @@
       status(`Xong. Đã đọc ${pages.length} trang.`);
     } catch (err) {
       console.error(err);
-      status("⚠️ Lỗi: " + (err && err.message ? err.message : err));
+      status("⚠️ Lỗi: " + (err && err.message ? err.message : err) + " — Nếu bạn đang mở bản xem trên claude.ai, hãy dùng bản trên GitHub Pages hoặc trên robobrain (python3 -m http.server), nơi có đủ dữ liệu nhận dạng chữ.");
     }
   }
 
