@@ -10,7 +10,10 @@
     "ü": "ㄩ", "üe": "ㄩㄝ", "üan": "ㄩㄢ", "ün": "ㄩㄣ"
   };
   const MARKS = { "ā": "a1", "á": "a2", "ǎ": "a3", "à": "a4", "ē": "e1", "é": "e2", "ě": "e3", "è": "e4", "ī": "i1", "í": "i2", "ǐ": "i3", "ì": "i4",
-    "ō": "o1", "ó": "o2", "ǒ": "o3", "ò": "o4", "ū": "u1", "ú": "u2", "ǔ": "u3", "ù": "u4", "ǖ": "ü1", "ǘ": "ü2", "ǚ": "ü3", "ǜ": "ü4" };
+    "ō": "o1", "ó": "o2", "ǒ": "o3", "ò": "o4", "ū": "u1", "ú": "u2", "ǔ": "u3", "ù": "u4", "ǖ": "ü1", "ǘ": "ü2", "ǚ": "ü3", "ǜ": "ü4",
+    // OCR hay đọc dấu thanh 3 (ˇ) thành dấu trăng của tiếng Việt (ă) → coi như thanh 3
+    "ă": "a3", "ĕ": "e3", "ĭ": "i3", "ŏ": "o3", "ŭ": "u3", "ả": "a3", "ẻ": "e3", "ỉ": "i3", "ỏ": "o3", "ủ": "u3",
+    "ã": "a1", "ẽ": "e1", "ĩ": "i1", "õ": "o1", "ũ": "u1" };
   const TONE_ZY = ["", "", "ˊ", "ˇ", "ˋ"];
 
   // base: âm tiết không dấu (dùng ü). Trả về chú âm không dấu thanh, hoặc null nếu không hợp lệ.
@@ -117,6 +120,9 @@
     if (!st.user) st.user = { words: [], grammar: [] };
     return st.user;
   }
+  let drafts = {};
+  const setDraft = (type, obj) => (drafts[type] = obj);
+  const takeDraft = (type) => { const d = drafts[type]; delete drafts[type]; return d; };
   const newId = () => "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   function saveWord(w) {
     const p = pool();
@@ -190,16 +196,18 @@
       <header class="lesson-head">
         <div><h1>我的內容 — Nội dung của tôi</h1>
         <p class="muted">Kho riêng của bạn, tách khỏi kho mặc định. Từ và ngữ pháp ở đây được ôn tập bằng thẻ ghi nhớ và được trộn chung với kho mặc định khi thi.</p></div>
-        <div class="pager"><a class="btn primary" href="#/mine/word/new">＋ Thêm từ</a><a class="btn primary" href="#/mine/grammar/new">＋ Thêm ngữ pháp</a></div>
+        <div class="pager"><a class="btn" href="#/mine/scan">📷 Từ ảnh / PDF</a><a class="btn primary" href="#/mine/word/new">＋ Thêm từ</a><a class="btn primary" href="#/mine/grammar/new">＋ Thêm ngữ pháp</a></div>
       </header>
       <nav class="tabs">
         <a href="#/mine/words" class="${tab === "words" ? "active" : ""}">📖 Từ của tôi (${p.words.length})</a>
         <a href="#/mine/grammar" class="${tab === "grammar" ? "active" : ""}">✏️ Ngữ pháp của tôi (${p.grammar.length})</a>
+        <a href="#/mine/scan" class="${tab === "scan" ? "active" : ""}">📷 Từ ảnh / PDF</a>
         <a href="#/mine/bulk" class="${tab === "bulk" ? "active" : ""}">📋 Nhập nhanh nhiều từ</a>
       </nav>
       <div id="tab"></div>`;
     const $t = document.getElementById("tab");
     if (tab === "bulk") return bulkView($t);
+    if (tab === "scan") return OCR.viewScan($t);
     if (tab === "grammar") {
       if (!p.grammar.length) { $t.innerHTML = `<div class="center-box"><p>Chưa có điểm ngữ pháp nào.</p><a class="btn primary" href="#/mine/grammar/new">＋ Thêm ngữ pháp đầu tiên</a></div>`; return; }
       $t.innerHTML = p.grammar.map((g, gi) => `
@@ -235,7 +243,8 @@
   function viewWordForm(id) {
     const { esc } = UI;
     const editing = id && id !== "new" ? pool().words.find((w) => w.id === id) : null;
-    const w = editing || { hz: "", py: "", zy: "", vi: "", hv: "", story: "", ex: { zh: "", py: "", vi: "" }, pic: "", unit: lastUnit() };
+    const draft = editing ? null : takeDraft("word");
+    const w = editing || Object.assign({ hz: "", py: "", zy: "", vi: "", hv: "", story: "", ex: { zh: "", py: "", vi: "" }, pic: "", unit: lastUnit() }, draft || {});
     const ex = w.ex || { zh: "", py: "", vi: "" };
     $app().innerHTML = `
       <div class="crumbs"><a href="#/">Trang chủ</a> › <a href="#/mine/words">Nội dung của tôi</a> › ${editing ? "Sửa từ" : "Thêm từ"}</div>
@@ -265,7 +274,7 @@
         <div><h3>Xem trước</h3><div id="preview"></div></div>
       </div>`;
     const f = document.getElementById("wf");
-    let zyTouched = !!editing;
+    let zyTouched = !!editing || !!(draft && draft.zy);
     f.zy.addEventListener("input", () => (zyTouched = true));
     function read() {
       const d = Object.fromEntries(new FormData(f));
@@ -323,7 +332,7 @@
   function viewGrammarForm(id) {
     const { esc } = UI;
     const editing = id && id !== "new" ? pool().grammar.find((g) => g.id === id) : null;
-    const g = editing || { title: "", explain: "", pattern: "", examples: [], exercises: [], unit: lastUnit() };
+    const g = editing || Object.assign({ title: "", explain: "", pattern: "", examples: [], exercises: [], unit: lastUnit() }, takeDraft("grammar") || {});
     $app().innerHTML = `
       <div class="crumbs"><a href="#/">Trang chủ</a> › <a href="#/mine/grammar">Nội dung của tôi</a> › ${editing ? "Sửa ngữ pháp" : "Thêm ngữ pháp"}</div>
       <h1>${editing ? "Sửa điểm ngữ pháp" : "Thêm điểm ngữ pháp"}</h1>
@@ -428,5 +437,5 @@
     };
   }
 
-  window.UserContent = { pool, pinyinToZhuyin, simplifiedChars, toTraditional, viewMine, viewWordForm, viewGrammarForm, parseExercises };
+  window.UserContent = { pool, saveWord, setDraft, pinyinToZhuyin, simplifiedChars, toTraditional, viewMine, viewWordForm, viewGrammarForm, parseExercises };
 })();

@@ -75,7 +75,7 @@
     [/^#\/mock$/, () => Exam.viewExam("all")],
     [/^#\/mine\/word\/([\w-]+)$/, (id) => UserContent.viewWordForm(id)],
     [/^#\/mine\/grammar\/([\w-]+)$/, (id) => UserContent.viewGrammarForm(id)],
-    [/^#\/mine(?:\/(words|grammar|bulk))?$/, (t) => UserContent.viewMine(t || "words")],
+    [/^#\/mine(?:\/(words|grammar|bulk|scan))?$/, (t) => UserContent.viewMine(t || "words")],
     [/^#\/zhuyin$/, viewZhuyin],
     [/^#\/words$/, viewWords],
     [/^#\/settings$/, viewSettings]

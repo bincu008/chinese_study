@@ -193,3 +193,15 @@ code { background: var(--soft); padding: 1px 5px; border-radius: 4px; font-size:
 .good { color: var(--ok); } .bad { color: var(--bad); } .small { font-size: .8rem; }
 .parts { max-width: 480px; margin: 14px auto; }
 @media (max-width: 560px) { .mode-pick { grid-template-columns: 1fr; } }
+
+/* ── Ảnh / PDF → từ vựng ── */
+.drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 28px; border: 2px dashed var(--line); border-radius: 14px; cursor: pointer; text-align: center; background: var(--bg); margin: 12px 0; }
+.drop:hover, .drop.over { border-color: var(--accent); }
+.drop-big { font-size: 2rem; }
+.ocr-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .ocr-grid { grid-template-columns: 1fr; } }
+.ocr-canvas { width: 100%; height: auto; max-height: 520px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.ocr-text { font-size: 1.05rem; }
+.ocr-table input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: 1rem system-ui, var(--hanzi); }
+.ocr-table .c-hz { font: 1.2rem var(--hanzi); min-width: 5em; }
+.ocr-table td { vertical-align: top; }
