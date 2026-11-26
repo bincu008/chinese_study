@@ -31,4 +31,4 @@ Thêm bài vào `LESSONS` (mỗi chữ trong `hz` ứng với đúng một âm t
 
 ## Phát hành phiên bản
 
-Tăng số trong file `VERSION`, viết ghi chú vào `release-notes/vX.Y.Z.md`, rồi đẩy lên `main`. GitHub Action `Release` sẽ tự tạo Release kèm file zip.
+Tăng số trong file `VERSION` và đổi `?v=` trong `index.html` cho khớp, viết ghi chú vào `release-notes/vX.Y.Z.md`, rồi đẩy lên `main`. GitHub Action `Release` sẽ tự tạo Release kèm file zip.
